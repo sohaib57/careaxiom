@@ -1,7 +1,10 @@
-const http = require('http');
-const url = require('url');
-const async = require('async');
-const request = require('request');
+
+import http from 'http'
+import url from 'url'
+import async from 'async'
+import request from 'request';
+
+
 
 const server = http.createServer((req, res) => {
     

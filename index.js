@@ -1,40 +1,36 @@
 const http = require('http');
 const url = require('url');
-const async = require('async');
+const RSVP = require('rsvp');
 const request = require('request');
 
 const server = http.createServer((req, res) => {
-    
   if (req.url.startsWith('/I/want/title/') && req.method === 'GET') {
     const queryData = url.parse(req.url, true).query;
     const addresses = Array.isArray(queryData.address) ? queryData.address : [queryData.address];
 
-
-    async.map(addresses, (address, callback) => {
+    RSVP.all(addresses.map(address => new RSVP.Promise((resolve, reject) => {
       const addressUrl = !/^https?:\/\//i.test(address) ? `http://${address}` : address;
       request({ url: addressUrl, followRedirect: true }, (error, response, body) => {
         if (error) {
-          callback(null, { address, title: 'No Response' });
-          return;
+          reject(error);
+        } else {
+          const title = body.match(/<title>(.*?)<\/title>/i);
+          resolve({ address, title: title ? title[1] : 'No Response' });
         }
-
-        const title = body.match(/<title>(.*?)<\/title>/i);
-        callback(null, { address, title: title ? title[1] : 'No Response' });
       });
-    }, (error, results) => {
-      if (error) {
+    })))
+      .then(results => {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.write('<html><head></head><body><h1> Following are the titles of given websites: </h1><ul>');
+        results.forEach(result => {
+          res.write(`<li>${result.address} - "${result.title}"</li>`);
+        });
+        res.end('</ul></body></html>');
+      })
+      .catch(error => {
         res.writeHead(500, { 'Content-Type': 'text/plain' });
         res.end('Internal Server Error');
-        return;
-      }
-
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.write('<html><head></head><body><h1> Following are the titles of given websites: </h1><ul>');
-      results.forEach((result) => {
-        res.write(`<li>${result.address} - "${result.title}"</li>`);
       });
-      res.end('</ul></body></html>');
-    });
   } else {
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not Found');
